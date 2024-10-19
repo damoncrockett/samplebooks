@@ -24,7 +24,7 @@ export default function App() {
                 <div id='imgpath'>{imgPath.slice(0,-4)}</div>
             </div>
             <img
-                src={returnDomain() + imgPath}
+                src={returnDomain() + 'img/' + imgPath}
             />
         </div>
     );
