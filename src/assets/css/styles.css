@@ -1,0 +1,38 @@
+body {
+    background-color: white;
+    margin: 0;
+    padding: 0;
+}
+
+#controls {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    max-width: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+}
+
+button {
+    font-family: monospace;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    border: 2px solid black;
+    box-shadow: 5px 5px 0 0 black;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: white;
+}
+
+#imgpath {
+    font-family: monospace;
+}
+
+img {
+    height: 100vh;
+    display: block;
+    margin: auto;
+}

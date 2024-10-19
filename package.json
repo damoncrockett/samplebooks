@@ -1,0 +1,33 @@
+{
+  "name": "samplebooks",
+  "packageManager": "yarn@4.5.1",
+  "version": "1.0.0",
+  "description": "Exploration UI for photographic sample book images",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --mode production",
+    "start": "webpack serve --hot --mode development",
+    "deploy": "aws s3 sync /Users/damoncrockett/samplebooks/dist/ s3://samplebook.photos/",
+    "sync": "aws s3 sync /Users/damoncrockett/samplebooks/src/assets/ s3://samplebook.photos/"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.25.8",
+    "@babel/preset-env": "^7.25.8",
+    "@babel/preset-react": "^7.25.7",
+    "babel-loader": "^9.2.1",
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.2",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.1.0"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
