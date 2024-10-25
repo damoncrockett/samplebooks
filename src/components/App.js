@@ -3,15 +3,14 @@ import imgpaths from '../assets/json/imgpaths.json';
 
 export function returnDomain(type) {
     const production = process.env.NODE_ENV === 'production';
-    if (production) {
-        return '';  // No port in production
-    }
     
-    // For images, we still need the full domain since they're served from a different port
     if (type === 'image') {
-        return 'http://localhost:8888/';
+        // For now, still using localhost for images until we set up CloudFront
+        return production ? 'http://localhost:8888/' : 'http://localhost:8888/';
     } else if (type === 'api') {
-        return 'http://localhost:3001';
+        return production 
+            ? 'https://fierce-earth-72469-f6228ef670f9.herokuapp.com'
+            : 'http://localhost:3001';
     }
     return '';
 }

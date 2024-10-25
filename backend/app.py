@@ -5,6 +5,22 @@ import os
 
 app = Flask(__name__)
 
+# CORS settings
+ALLOWED_ORIGINS = [
+    'http://localhost:8080',  # Development
+    'http://samplebook.photos.s3-website-us-east-1.amazonaws.com'
+]
+
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
 # Database setup
 DB_PATH = 'judgments.db'
 
@@ -33,14 +49,6 @@ def record_judgment(image_path, selected_model):
 # Initialize database when app starts
 init_db()
 
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8080')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
-
 @app.route('/api/submit_judgment', methods=['POST', 'OPTIONS'])
 def submit_judgment():
     if request.method == 'OPTIONS':
@@ -67,7 +75,6 @@ def submit_judgment():
         }
     })
 
-# Optional: endpoint to get statistics
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     with sqlite3.connect(DB_PATH) as conn:
