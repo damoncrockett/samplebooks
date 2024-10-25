@@ -5,8 +5,7 @@ export function returnDomain(type) {
     const production = process.env.NODE_ENV === 'production';
     
     if (type === 'image') {
-        // For now, still using localhost for images until we set up CloudFront
-        return production ? 'http://localhost:8888/' : 'http://localhost:8888/';
+        return production ? '' : 'http://localhost:8888/';
     } else if (type === 'api') {
         return production 
             ? 'https://fierce-earth-72469-f6228ef670f9.herokuapp.com'
