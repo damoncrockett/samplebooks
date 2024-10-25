@@ -5,10 +5,10 @@ import os
 
 app = Flask(__name__)
 
-# CORS settings
 ALLOWED_ORIGINS = [
     'http://localhost:8080',  # Development
-    'http://samplebook.photos.s3-website-us-east-1.amazonaws.com'
+    'http://samplebook.photos.s3-website-us-east-1.amazonaws.com',  # Production S3 website
+    'http://samplebook.photos'  # Production domain
 ]
 
 @app.after_request
