@@ -14,11 +14,15 @@ ALLOWED_ORIGINS = [
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin')
-    if origin in ALLOWED_ORIGINS:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    if origin:  # If there's an origin header
+        # Check if the origin is in our allowed list
+        if origin in ALLOWED_ORIGINS:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        else:
+            print(f"Rejected CORS request from origin: {origin}")  # For debugging
     return response
 
 # Database setup
