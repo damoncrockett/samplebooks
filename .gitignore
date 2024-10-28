@@ -18,3 +18,4 @@ notebooks
 sbenv
 src/assets/ims.zip
 _notes.txt
+.env
