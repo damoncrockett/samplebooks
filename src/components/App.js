@@ -113,6 +113,7 @@ export default function App() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     imgPath: currentImage,
                     selectedModel: selectedModel,
