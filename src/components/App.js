@@ -98,9 +98,23 @@ export default function App() {
 
     const fetchStats = async () => {
         try {
-            const response = await fetch(`${returnDomain('api')}/api/stats`);
-            const data = await response.json();
-            console.log('Database contents:', data);
+            const response = await fetch(`${returnDomain('api')}/api/stats`, {
+                credentials: 'include',  // Add this line to ensure cookies are sent
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Database contents:', data);
+            } else {
+                console.error('Failed to fetch stats:', response.status);
+                // If unauthorized, might need to trigger re-login
+                if (response.status === 401) {
+                    setIsLoggedIn(false);
+                }
+            }
         } catch (error) {
             console.error('Error fetching stats:', error);
         }
