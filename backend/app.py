@@ -19,12 +19,13 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_cookie = request.cookies.get('auth_token')
-        print("Received auth cookie:", auth_cookie)  # Debug log
-        print("Expected secret key:", app.config['SECRET_KEY'])  # Debug log
+        print("Received cookies:", request.cookies)  # Debug
+        print("Auth cookie value:", auth_cookie)  # Debug
+        print("Expected value:", app.config['SECRET_KEY'])  # Debug
         if not auth_cookie or auth_cookie != app.config['SECRET_KEY']:
-            print("Auth failed")  # Debug log
+            print("Auth failed - cookie missing or mismatch")  # Debug
             return jsonify({"error": "Unauthorized"}), 401
-        print("Auth successful")  # Debug log
+        print("Auth successful")  # Debug
         return f(*args, **kwargs)
     return decorated_function
 
@@ -36,24 +37,24 @@ def login():
     # Hash the provided password
     hashed = hashlib.sha256(password.encode()).hexdigest()
     
-    print("Received hash:", hashed)  # Debug log
-    print("Stored hash:", app.config['PASSWORD_HASH'])  # Debug log
-    print("Match?", hashed == app.config['PASSWORD_HASH'])  # Debug log
+    print("Received hash:", hashed)  # Debug
+    print("Stored hash:", app.config['PASSWORD_HASH'])  # Debug
     
     if hashed == app.config['PASSWORD_HASH']:
         response = make_response(jsonify({"status": "success"}))
         
-        # Set cookie that expires in 30 days
+        print("Setting cookie with value:", app.config['SECRET_KEY'])  # Debug
+        
         response.set_cookie(
             'auth_token', 
             app.config['SECRET_KEY'],
             max_age=timedelta(days=30),
             secure=True,
             httponly=True,
-            samesite='Strict'
+            samesite='Strict',
         )
         return response
-    
+
     return jsonify({"status": "error", "message": "Invalid password"}), 401
 
 # CORS settings
