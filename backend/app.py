@@ -60,7 +60,8 @@ def login():
 ALLOWED_ORIGINS = [
     'http://localhost:8080',  # Development
     'http://samplebook.photos',  # Production domain HTTP
-    'https://samplebook.photos'  # Production domain HTTPS
+    'https://samplebook.photos',  # Production domain HTTPS
+    'https://fierce-earth-72469-f6228ef670f9.herokuapp.com'  # Heroku domain
 ]
 
 @app.after_request
