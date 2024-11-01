@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import captions from '../assets/json/captions_for_web.json';
+import Login from './Login';
 
 export function returnDomain(type) {
     const production = process.env.NODE_ENV === 'production';
@@ -24,6 +25,7 @@ export default function App() {
     const [modelA, setModelA] = useState(null);
     const [modelB, setModelB] = useState(null);
     const [rotation, setRotation] = useState(0);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
 
     const transformComponentRef = useRef(null);
 
@@ -63,6 +65,30 @@ export default function App() {
         }
 
     };
+
+    useEffect(() => {
+        // Check if auth cookie exists
+        const checkAuth = async () => {
+            try {
+                console.log('Checking auth...');
+                const response = await fetch(`${returnDomain('api')}/api/stats`, {
+                    credentials: 'include'  // Make sure we're sending cookies
+                });
+                console.log('Auth response status:', response.status);
+                if (response.ok) {
+                    setIsLoggedIn(true);
+                    console.log('Auth successful');
+                } else {
+                    console.log('Auth failed');
+                    setIsLoggedIn(false);
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                setIsLoggedIn(false);
+            }
+        };
+        checkAuth();
+    }, []);
 
     useEffect(() => {
         selectRandomImageAndCaptions();
@@ -106,6 +132,10 @@ export default function App() {
 
     if (!currentImage || !captionA || !captionB) {
         return <div>Loading...</div>;
+    }
+
+    if (!isLoggedIn) {
+        return <Login onLogin={setIsLoggedIn} />;
     }
 
     return (

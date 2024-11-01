@@ -4,10 +4,57 @@ import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime
 from dotenv import load_dotenv
+from functools import wraps
+import hashlib
+from datetime import timedelta
 
 load_dotenv()
 
 app = Flask(__name__)
+
+app.config['PASSWORD_HASH'] = os.environ.get('PASSWORD_HASH')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_cookie = request.cookies.get('auth_token')
+        print("Received auth cookie:", auth_cookie)  # Debug log
+        print("Expected secret key:", app.config['SECRET_KEY'])  # Debug log
+        if not auth_cookie or auth_cookie != app.config['SECRET_KEY']:
+            print("Auth failed")  # Debug log
+            return jsonify({"error": "Unauthorized"}), 401
+        print("Auth successful")  # Debug log
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json
+    password = data.get('password', '')
+    
+    # Hash the provided password
+    hashed = hashlib.sha256(password.encode()).hexdigest()
+    
+    print("Received hash:", hashed)  # Debug log
+    print("Stored hash:", app.config['PASSWORD_HASH'])  # Debug log
+    print("Match?", hashed == app.config['PASSWORD_HASH'])  # Debug log
+    
+    if hashed == app.config['PASSWORD_HASH']:
+        response = make_response(jsonify({"status": "success"}))
+        
+        # Set cookie that expires in 30 days
+        response.set_cookie(
+            'auth_token', 
+            app.config['SECRET_KEY'],
+            max_age=timedelta(days=30),
+            secure=True,
+            httponly=True,
+            samesite='Strict'
+        )
+        return response
+    
+    return jsonify({"status": "error", "message": "Invalid password"}), 401
 
 # CORS settings
 ALLOWED_ORIGINS = [
@@ -66,6 +113,7 @@ except Exception as e:
     print(f"Error initializing database: {e}")
 
 @app.route('/api/submit_judgment', methods=['POST', 'OPTIONS'])
+@login_required
 def submit_judgment():
     if request.method == 'OPTIONS':
         return jsonify({"status": "success"})
@@ -103,6 +151,7 @@ def submit_judgment():
         }), 500
 
 @app.route('/api/stats', methods=['GET'])
+@login_required
 def get_stats():
     try:
         with get_db_connection() as conn:
