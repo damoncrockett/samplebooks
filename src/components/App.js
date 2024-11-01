@@ -3,6 +3,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import captions from '../assets/json/captions_for_web.json';
 import Login from './Login';
 import Instructions from './Instructions';
+import SuccessToast from './SuccessToast';
 
 export function returnDomain(type) {
     const production = process.env.NODE_ENV === 'production';
@@ -28,6 +29,7 @@ export default function App() {
     const [rotation, setRotation] = useState(0);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [showInstructions, setShowInstructions] = useState(true);
+    const [showToast, setShowToast] = useState(false);
 
     const transformComponentRef = useRef(null);
 
@@ -136,6 +138,9 @@ export default function App() {
             });
     
             if (response.ok) {
+                setShowToast(true);
+                // Hide toast after 1.5 seconds
+                setTimeout(() => setShowToast(false), 1500);
                 selectRandomImageAndCaptions();
             }
         } catch (error) {
@@ -207,6 +212,7 @@ export default function App() {
                     {captionB}
                 </div>
             </div>
+            <SuccessToast show={showToast} />
         </div>
     );
 }
