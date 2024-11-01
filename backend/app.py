@@ -34,24 +34,21 @@ def login():
     data = request.json
     password = data.get('password', '')
     
-    # Hash the provided password
     hashed = hashlib.sha256(password.encode()).hexdigest()
-    
-    print("Received hash:", hashed)  # Debug
-    print("Stored hash:", app.config['PASSWORD_HASH'])  # Debug
     
     if hashed == app.config['PASSWORD_HASH']:
         response = make_response(jsonify({"status": "success"}))
         
-        print("Setting cookie with value:", app.config['SECRET_KEY'])  # Debug
-        
+        # Be explicit about the domain
         response.set_cookie(
             'auth_token', 
             app.config['SECRET_KEY'],
             max_age=timedelta(days=30),
             secure=True,
             httponly=True,
-            samesite='Strict',
+            samesite='None',  # Changed from 'Strict' to 'None' for cross-site
+            path='/',
+            domain='fierce-earth-72469-f6228ef670f9.herokuapp.com'
         )
         return response
 
@@ -68,14 +65,12 @@ ALLOWED_ORIGINS = [
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin')
-    if origin:
-        if origin in ALLOWED_ORIGINS:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-            response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-        else:
-            print(f"Rejected CORS request from origin: {origin}")
+    if origin and origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Vary'] = 'Origin'  # Important for CORS with credentials
     return response
 
 @app.route('/api/submit_judgment', methods=['OPTIONS'])
