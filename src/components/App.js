@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import captions from '../assets/json/captions_for_web.json';
 import Login from './Login';
+import Instructions from './Instructions';
 
 export function returnDomain(type) {
     const production = process.env.NODE_ENV === 'production';
@@ -26,6 +27,7 @@ export default function App() {
     const [modelB, setModelB] = useState(null);
     const [rotation, setRotation] = useState(0);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [showInstructions, setShowInstructions] = useState(true);
 
     const transformComponentRef = useRef(null);
 
@@ -140,6 +142,9 @@ export default function App() {
 
     return (
         <div className="app-container">
+            {showInstructions && (
+                <Instructions onClose={() => setShowInstructions(false)} />
+            )}
             <div id="controls">
                 <button onClick={fetchStats}>STATS</button>
                 <button className='rotate-button' onClick={() => handleRotate('left')}>⟲</button>

@@ -44,6 +44,75 @@ body {
     font-size: 0.8rem;
 }
 
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 2rem;
+    border: 2px solid black;
+    border-radius: 10px;
+    box-shadow: 5px 5px 0 0 black;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+}
+
+.modal-content button {
+    background-color: #FFBE00;  /* Kodak yellow */
+    border: 2px solid black;
+    font-family: monospace;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    box-shadow: 5px 5px 0 0 black;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.modal-content button:active {
+    transform: translateY(2px);
+    box-shadow: 3px 3px 0 0 black;
+}
+
+.modal-text {
+    font-family: monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.modal-text ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.modal-text li {
+    margin-bottom: 0.8rem;
+    padding-left: 1.2rem;
+    position: relative;
+}
+
+.modal-text li:before {
+    content: ">";
+    position: absolute;
+    left: 0;
+}
+
+.modal-text p {
+    margin-bottom: 1rem;
+}
+
 #controls {
     position: fixed;
     top: 10px;
