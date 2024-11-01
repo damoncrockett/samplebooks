@@ -13,6 +13,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 1rem;
+    z-index: 1000;  /* Ensure controls stay above the image */
 }
 
 button {
@@ -26,18 +27,59 @@ button {
     background-color: white;
 }
 
+.rotate-button {
+    font-size: 2rem;
+    padding: 0.25rem 0.5rem;
+}
+
 button:focus {
     outline: none;
 }
 
+button:active {
+    transform: translateY(2px);
+    box-shadow: 3px 3px 0 0 black;
+}
+
 #imgpath {
     font-family: monospace;
+    color: white;  /* Make it visible against gray background */
+}
+
+.image-container {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.transform-component-holder {
+    width: 150vw !important;
+    height: 150vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: rgb(75,75,75);
+}
+
+.react-transform-wrapper {
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+}
+
+.react-transform-component {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 img {
-    height: 100vh;
-    display: block;
-    margin: auto;
+    height: auto;
+    max-height: 100vh;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
 }
 
 #captions {
@@ -49,6 +91,8 @@ img {
     justify-content: space-between;
     padding: 2rem 10%;
     gap: 2rem;
+    z-index: 1000;  /* Ensure captions stay above the image */
+    pointer-events: none;  /* Let scroll/zoom work through the padding */
 }
 
 .caption-box {
@@ -60,17 +104,28 @@ img {
     font-size: 0.75rem;
     line-height: 1.4;
     width: 45%;
+    max-height: 120px;  /* Set maximum height */
+    overflow-y: scroll;  /* Enable vertical scrolling */
+    scrollbar-width: auto;  /* For Firefox */
+    -ms-overflow-style: auto;  /* For IE/Edge */
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     box-shadow: 5px 5px 0 0 rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
 }
 
-.caption-box:hover {
-    transform: translateY(-2px);
-    box-shadow: 7px 7px 0 0 rgba(0, 0, 0, 0.25);
+/* Style the scrollbar for WebKit browsers */
+.caption-box::-webkit-scrollbar {
+    width: 12px;
 }
 
-.caption-box:active {
-    transform: translateY(1px);
-    box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.15);
+.caption-box::-webkit-scrollbar-track {
+    background: #f0f0f0;
+    border-radius: 5px;
+}
+
+.caption-box::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 5px;
+    border: 3px solid #f0f0f0;
 }

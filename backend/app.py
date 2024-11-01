@@ -3,6 +3,9 @@ import os
 import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -27,36 +30,33 @@ def after_request(response):
     return response
 
 def get_db_connection():
-    # In development, you can set DATABASE_URL in your environment
-    # In production, Heroku sets this automatically
     database_url = os.environ.get('DATABASE_URL')
-    
-    # Heroku's newer DATABASE_URLs start with postgres://, but psycopg2 wants postgresql://
     if database_url and database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
     return psycopg2.connect(database_url)
 
 def init_db():
     with get_db_connection() as conn:
         with conn.cursor() as cur:
+            # Create new matchups table
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS judgments (
+                CREATE TABLE IF NOT EXISTS matchups (
                     id SERIAL PRIMARY KEY,
                     image_path TEXT NOT NULL,
                     selected_model TEXT NOT NULL,
+                    other_model TEXT NOT NULL,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
         conn.commit()
 
-def record_judgment(image_path, selected_model):
+def record_judgment(image_path, selected_model, other_model):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute('''
-                INSERT INTO judgments (image_path, selected_model)
-                VALUES (%s, %s)
-            ''', (image_path, selected_model))
+                INSERT INTO matchups (image_path, selected_model, other_model)
+                VALUES (%s, %s, %s)
+            ''', (image_path, selected_model, other_model))
         conn.commit()
 
 # Initialize database when app starts
@@ -72,30 +72,34 @@ def submit_judgment():
         
     data = request.json
     image_path = data.get('imgPath')
-    caption_choice = data.get('selectedCaption')
+    selected_model = data.get('selectedModel')
+    other_model = data.get('otherModel')
     
-    # Map caption choice to model
-    selected_model = 'Model A' if caption_choice == 'Caption A' else 'Model B'
+    if not all([image_path, selected_model, other_model]):
+        return jsonify({
+            "status": "error",
+            "message": "Missing required fields"
+        }), 400
     
     try:
-        # Record the judgment
-        record_judgment(image_path, selected_model)
+        record_judgment(image_path, selected_model, other_model)
         
-        print(f"Recorded judgment - Image: {image_path}, Model: {selected_model}")
+        print(f"Recorded matchup - Image: {image_path}, Winner: {selected_model}, Other: {other_model}")
         
         return jsonify({
             "status": "success",
-            "message": "Judgment recorded",
+            "message": "Matchup recorded",
             "data": {
                 "image_path": image_path,
-                "selected_model": selected_model
+                "selected_model": selected_model,
+                "other_model": other_model
             }
         })
     except Exception as e:
-        print(f"Error recording judgment: {e}")
+        print(f"Error recording matchup: {e}")
         return jsonify({
             "status": "error",
-            "message": "Failed to record judgment"
+            "message": "Failed to record matchup"
         }), 500
 
 @app.route('/api/stats', methods=['GET'])
@@ -103,27 +107,73 @@ def get_stats():
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
+                # Get overall win counts for each model
                 cur.execute('''
                     SELECT 
-                        image_path,
-                        selected_model,
-                        COUNT(*) as count
-                    FROM judgments
-                    GROUP BY image_path, selected_model
-                    ORDER BY image_path, selected_model
+                        selected_model as model,
+                        COUNT(*) as wins,
+                        (
+                            SELECT COUNT(*)
+                            FROM matchups j2
+                            WHERE j2.other_model = j1.selected_model
+                        ) as losses
+                    FROM matchups j1
+                    GROUP BY selected_model
+                    ORDER BY wins DESC
                 ''')
-                rows = cur.fetchall()
+                model_stats = cur.fetchall()
                 
-                stats = {}
-                for row in rows:
-                    img_path = row['image_path']
-                    model = row['selected_model']
-                    count = row['count']
-                    if img_path not in stats:
-                        stats[img_path] = {}
-                    stats[img_path][model] = count
+                # Get head-to-head stats
+                cur.execute('''
+                    WITH matchups_summary AS (
+                        SELECT 
+                            LEAST(selected_model, other_model) as model1,
+                            GREATEST(selected_model, other_model) as model2,
+                            CASE 
+                                WHEN selected_model = LEAST(selected_model, other_model) THEN 1
+                                ELSE 0
+                            END as model1_won
+                        FROM matchups
+                    )
+                    SELECT 
+                        model1,
+                        model2,
+                        SUM(model1_won) as model1_wins,
+                        COUNT(*) - SUM(model1_won) as model2_wins,
+                        COUNT(*) as total_matches
+                    FROM matchups_summary
+                    GROUP BY model1, model2
+                    ORDER BY total_matches DESC, model1
+                ''')
+                matchup_stats = cur.fetchall()
                 
-                return jsonify(stats)
+                # Get total number of matchups judged
+                cur.execute('SELECT COUNT(*) as total FROM matchups')
+                total_matchups = cur.fetchone()['total']
+                
+                return jsonify({
+                    "total_matchups": total_matchups,
+                    "overall_stats": [
+                        {
+                            "model": row['model'],
+                            "wins": row['wins'],
+                            "losses": row['losses'],
+                            "win_rate": round(row['wins'] / (row['wins'] + row['losses']) * 100, 1)
+                            if (row['wins'] + row['losses']) > 0 else 0
+                        }
+                        for row in model_stats
+                    ],
+                    "matchup_stats": [
+                        {
+                            "model1": row['model1'],
+                            "model2": row['model2'],
+                            "model1_wins": row['model1_wins'],
+                            "model2_wins": row['model2_wins'],
+                            "total_matches": row['total_matches']
+                        }
+                        for row in matchup_stats
+                    ]
+                })
     except Exception as e:
         print(f"Error fetching stats: {e}")
         return jsonify({

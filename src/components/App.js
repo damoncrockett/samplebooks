@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import imgpaths from '../assets/json/imgpaths.json';
+import React, { useState, useEffect, useRef } from 'react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import captions from '../assets/json/captions_for_web.json';
 
 export function returnDomain(type) {
     const production = process.env.NODE_ENV === 'production';
@@ -15,7 +16,57 @@ export function returnDomain(type) {
 }
 
 export default function App() {
-    const [imgPath, setImgPath] = useState(imgpaths[0]);
+    const imgPaths = captions.map(item => item.url.split('/').pop());
+    
+    const [currentImage, setCurrentImage] = useState(null);
+    const [captionA, setCaptionA] = useState(null);
+    const [captionB, setCaptionB] = useState(null);
+    const [modelA, setModelA] = useState(null);
+    const [modelB, setModelB] = useState(null);
+    const [rotation, setRotation] = useState(0);
+
+    const transformComponentRef = useRef(null);
+
+    const selectRandomImageAndCaptions = () => {
+        // Select random image
+        const randomIndex = Math.floor(Math.random() * imgPaths.length);
+        const selectedPath = imgPaths[randomIndex];
+        
+        // Find corresponding captions
+        const imageData = captions.find(item => item.url.includes(selectedPath));
+        if (!imageData) return;
+
+        // Select two random captions
+        const availableCaptions = [...imageData.captions];
+        if (availableCaptions.length < 2) return;
+
+        // Shuffle array and take first two
+        for (let i = availableCaptions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [availableCaptions[i], availableCaptions[j]] = 
+            [availableCaptions[j], availableCaptions[i]];
+        }
+
+        const [first, second] = availableCaptions;
+
+        setCurrentImage(selectedPath);
+        setCaptionA(first.text);
+        setCaptionB(second.text);
+        setModelA(first.model);
+        setModelB(second.model);
+        setRotation(0);  // Reset rotation when changing images
+
+        setRotation(0);
+        // Reset position
+        if (transformComponentRef.current) {
+            transformComponentRef.current.resetTransform();
+        }
+
+    };
+
+    useEffect(() => {
+        selectRandomImageAndCaptions();
+    }, []);
 
     const fetchStats = async () => {
         try {
@@ -27,7 +78,7 @@ export default function App() {
         }
     };
 
-    const submitJudgment = async (caption) => {
+    const submitJudgment = async (selectedModel, otherModel) => {
         try {
             const response = await fetch(`${returnDomain('api')}/api/submit_judgment`, {
                 method: 'POST',
@@ -35,57 +86,75 @@ export default function App() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    imgPath: imgPath,
-                    selectedCaption: caption,
+                    imgPath: currentImage,
+                    selectedModel: selectedModel,
+                    otherModel: otherModel
                 })
             });
     
             if (response.ok) {
-                const randomIndex = Math.floor(Math.random() * imgpaths.length);
-                setImgPath(imgpaths[randomIndex]);
+                selectRandomImageAndCaptions();
             }
         } catch (error) {
             console.error('Error:', error);
         }
     };
 
+    const handleRotate = (direction) => {
+        setRotation(prev => (prev + (direction === 'right' ? 90 : -90)) % 360);
+    };
+
+    if (!currentImage || !captionA || !captionB) {
+        return <div>Loading...</div>;
+    }
+
     return (
-        <div>
+        <div className="app-container">
             <div id="controls">
-                <button id="stats" onClick={fetchStats}>STATS</button>
-                <div id="imgpath">{imgPath.slice(0, -4)}</div>
+                <button onClick={fetchStats}>STATS</button>
+                <button className='rotate-button' onClick={() => handleRotate('left')}>⟲</button>
+                <button className='rotate-button' onClick={() => handleRotate('right')}>⟳</button>
+                <div id="imgpath">{currentImage.slice(0, -4)}</div>
             </div>
-
-            <img src={returnDomain('image') + 'img/' + imgPath} alt="Random" />
-
+    
+            <div className="image-container">
+            <TransformWrapper
+                ref={transformComponentRef}
+                initialScale={1}
+                minScale={0.5}
+                maxScale={4}
+                wheel={{ step: 0.1 }}
+                centerOnInit={false}
+                limitToBounds={false}  // This should prevent the bounce-back
+                boundsSensitivity={0}  // Makes the bounds less "magnetic"
+            >
+                <TransformComponent
+                    wrapperClass="transform-component-holder"
+                >
+                    <img 
+                        src={returnDomain('image') + 'img/' + currentImage} 
+                        alt="Random"
+                        style={{
+                            transform: `rotate(${rotation}deg)`,
+                            transition: 'transform 0.3s ease'
+                        }}
+                    />
+                </TransformComponent>
+            </TransformWrapper>
+            </div>
+    
             <div id="captions">
                 <div 
                     className="caption-box" 
-                    onClick={() => submitJudgment('Caption A')}
+                    onClick={() => submitJudgment(modelA, modelB)}
                 >
-                    In this striking image, a serene mountain lake reflects the surrounding peaks 
-                    while early morning mist creates an ethereal atmosphere. The composition draws 
-                    the viewer's eye from the rocky foreground to the distant mountains, creating 
-                    a sense of depth and scale. The interplay of light and shadow adds dramatic 
-                    dimension to the scene, while the perfectly still water serves as a mirror, 
-                    doubling the visual impact of the majestic landscape. The subtle gradients 
-                    of color in the sky suggest this photograph was taken during the golden hour, 
-                    lending a warm and inviting quality to the otherwise cool mountain tones. (Model A)
+                    {captionA}
                 </div>
                 <div 
                     className="caption-box"
-                    onClick={() => submitJudgment('Caption B')}
+                    onClick={() => submitJudgment(modelB, modelA)}
                 >
-                    The photograph captures a tranquil mountain scene where still waters mirror 
-                    the majestic peaks above. Wisps of morning fog add an element of mystery, 
-                    while the careful framing emphasizes the grandeur of the natural landscape 
-                    through its use of foreground elements. The photographer has masterfully 
-                    balanced the composition, with the reflection creating a perfect symmetry 
-                    that draws the viewer into the scene. Fine details in the rocky outcrops 
-                    provide textural contrast to the smooth water surface, while the layered 
-                    mountain ridges create a sense of depth that extends far into the distance. 
-                    The ethereal quality of the light suggests a peaceful early morning moment 
-                    in this pristine wilderness setting. (Model B)
+                    {captionB}
                 </div>
             </div>
         </div>
