@@ -176,11 +176,7 @@ def save_crop(image_path):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                # We no longer need to check if coordinates exist first,
-                # since we'll be creating/updating them here
-                
-                # Get the coordinates from the request
-                # (We'll need to modify the frontend to send coordinates with this request)
+
                 data = request.json
                 coordinates = data.get('coordinates')
                 
