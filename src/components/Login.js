@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { returnDomain } from './App';  // make sure path is correct
+import { returnDomain } from '../utils/returnDomain';
 
 export default function Login({ onLogin }) {
     const [password, setPassword] = useState('');

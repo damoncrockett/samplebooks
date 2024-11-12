@@ -3,182 +3,19 @@ import imagePaths from '../assets/json/impaths_all.json';
 import tombstone from '../assets/json/tombstone.json';
 import Login from './Login';
 import Instructions from './Instructions';
-
-export function returnDomain(type) {
-    const production = process.env.NODE_ENV === 'production';
-    
-    if (type === 'image') {
-        return production ? '' : 'http://localhost:8888/';
-    } else if (type === 'api') {
-        return production 
-            ? 'https://fierce-earth-72469-f6228ef670f9.herokuapp.com'
-            : 'http://localhost:3001';
-    }
-    return '';
-}
-
-const CropBox = ({ coordinates, setCoordinates, imageRef }) => {
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [resizing, setResizing] = useState(null);
-    const boxRef = useRef(null);
-
-    const getPixelCoords = () => {
-        if (!imageRef.current) return { x: 0, y: 0, width: 0, height: 0 };
-        const { offsetWidth: displayWidth, offsetHeight: displayHeight } = imageRef.current;
-        
-        return {
-            x: coordinates.x * displayWidth,
-            y: coordinates.y * displayHeight,
-            width: coordinates.width * displayWidth,
-            height: coordinates.height * displayHeight
-        };
-    };
-
-    const normalizeCoordinates = (pixelX, pixelY, pixelWidth, pixelHeight) => {
-        if (!imageRef.current) return coordinates;
-        const { offsetWidth: displayWidth, offsetHeight: displayHeight } = imageRef.current;
-        
-        return {
-            x: Math.max(0, Math.min(1, pixelX / displayWidth)),
-            y: Math.max(0, Math.min(1, pixelY / displayHeight)),
-            width: Math.max(0, Math.min(1, pixelWidth / displayWidth)),
-            height: Math.max(0, Math.min(1, pixelHeight / displayHeight))
-        };
-    };
-
-    const handleMouseDown = (e, handle = null) => {
-        e.stopPropagation();
-        const { clientX, clientY } = e;
-        setDragStart({ x: clientX, y: clientY });
-        
-        if (handle) {
-            setResizing(handle);
-        } else {
-            setIsDragging(true);
-        }
-    };
-
-    const handleMouseMove = (e) => {
-        if (!isDragging && !resizing) return;
-        
-        const { clientX, clientY } = e;
-        const deltaX = clientX - dragStart.x;
-        const deltaY = clientY - dragStart.y;
-        const pixelCoords = getPixelCoords();
-
-        if (isDragging) {
-            const newCoords = normalizeCoordinates(
-                pixelCoords.x + deltaX,
-                pixelCoords.y + deltaY,
-                pixelCoords.width,
-                pixelCoords.height
-            );
-            setCoordinates(newCoords);
-        } else if (resizing) {
-            let newX = pixelCoords.x;
-            let newY = pixelCoords.y;
-            let newWidth = pixelCoords.width;
-            let newHeight = pixelCoords.height;
-
-            switch (resizing) {
-                case 'n':
-                    newY += deltaY;
-                    newHeight -= deltaY;
-                    break;
-                case 's':
-                    newHeight += deltaY;
-                    break;
-                case 'e':
-                    newWidth += deltaX;
-                    break;
-                case 'w':
-                    newX += deltaX;
-                    newWidth -= deltaX;
-                    break;
-                case 'nw':
-                    newX += deltaX;
-                    newY += deltaY;
-                    newWidth -= deltaX;
-                    newHeight -= deltaY;
-                    break;
-                case 'ne':
-                    newY += deltaY;
-                    newWidth += deltaX;
-                    newHeight -= deltaY;
-                    break;
-                case 'sw':
-                    newX += deltaX;
-                    newWidth -= deltaX;
-                    newHeight += deltaY;
-                    break;
-                case 'se':
-                    newWidth += deltaX;
-                    newHeight += deltaY;
-                    break;
-            }
-
-            const newCoords = normalizeCoordinates(newX, newY, newWidth, newHeight);
-            setCoordinates(newCoords);
-        }
-
-        setDragStart({ x: clientX, y: clientY });
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-        setResizing(null);
-    };
-
-    useEffect(() => {
-        if (isDragging || resizing) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-            return () => {
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-            };
-        }
-    }, [isDragging, resizing]);
-
-    const pixelCoords = getPixelCoords();
-
-    return (
-        <div
-            ref={boxRef}
-            className="crop-box"
-            style={{
-                position: 'absolute',
-                left: `${pixelCoords.x}px`,
-                top: `${pixelCoords.y}px`,
-                width: `${pixelCoords.width}px`,
-                height: `${pixelCoords.height}px`,
-                cursor: isDragging ? 'grabbing' : 'grab'
-            }}
-            onMouseDown={(e) => handleMouseDown(e)}
-        >
-            <div className="resize-handle n" onMouseDown={(e) => handleMouseDown(e, 'n')} />
-            <div className="resize-handle s" onMouseDown={(e) => handleMouseDown(e, 's')} />
-            <div className="resize-handle e" onMouseDown={(e) => handleMouseDown(e, 'e')} />
-            <div className="resize-handle w" onMouseDown={(e) => handleMouseDown(e, 'w')} />
-            <div className="resize-handle nw" onMouseDown={(e) => handleMouseDown(e, 'nw')} />
-            <div className="resize-handle ne" onMouseDown={(e) => handleMouseDown(e, 'ne')} />
-            <div className="resize-handle sw" onMouseDown={(e) => handleMouseDown(e, 'sw')} />
-            <div className="resize-handle se" onMouseDown={(e) => handleMouseDown(e, 'se')} />
-        </div>
-    );
-};
+import CropBox from './CropBox';
+import { returnDomain } from '../utils/returnDomain';
 
 export default function App() {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [showInstructions, setShowInstructions] = useState(true);
-    const [cropCoordinates, setCropCoordinates] = useState({});
-    const [savedImages, setSavedImages] = useState(0);
+    const [localCropCoordinates, setLocalCropCoordinates] = useState({});
+    const [savedCropCoordinates, setSavedCropCoordinates] = useState({});
     const [totalImages] = useState(imagePaths.length);
-    const imageRef = useRef(null);
     const [unsavedCounts, setUnsavedCounts] = useState({ before: 0, after: 0 });
     const [isCurrentCropSaved, setIsCurrentCropSaved] = useState(false);
+    const imageRef = useRef(null);
 
     useEffect(() => {
         const checkAuthAndPosition = async () => {
@@ -228,6 +65,7 @@ export default function App() {
 
     const fetchCropCoordinates = async (imageIndex) => {
         try {
+            setIsCurrentCropSaved(false);  // Reset saved state immediately when fetching
             const response = await fetch(
                 `${returnDomain('api')}/api/crop_coordinates/${imagePaths[imageIndex]}`,
                 { credentials: 'include' }
@@ -235,32 +73,24 @@ export default function App() {
             if (response.ok) {
                 const data = await response.json();
                 if (data.coordinates) {
-                    setCropCoordinates(prev => ({
+                    setSavedCropCoordinates(prev => ({
                         ...prev,
                         [imagePaths[imageIndex]]: data.coordinates
                     }));
                     setIsCurrentCropSaved(data.coordinates.is_saved);
                 } else {
-                    // No coordinates found for this image
-                    setCropCoordinates(prev => ({
+                    setSavedCropCoordinates(prev => ({
                         ...prev,
                         [imagePaths[imageIndex]]: null
                     }));
                     setIsCurrentCropSaved(false);
                 }
-            } else {
-                // Response not OK - reset states
-                setCropCoordinates(prev => ({
-                    ...prev,
-                    [imagePaths[imageIndex]]: null
-                }));
-                setIsCurrentCropSaved(false);
             }
         } catch (error) {
             console.error('Error fetching crop coordinates:', error);
             setIsCurrentCropSaved(false);
         }
-    };
+    };    
 
     const updatePosition = async (newIndex) => {
         try {
@@ -283,32 +113,9 @@ export default function App() {
         }
     };
 
-    const updateCropCoordinates = async (coordinates) => {
-        try {
-            const response = await fetch(
-                `${returnDomain('api')}/api/crop_coordinates/${imagePaths[currentImageIndex]}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ coordinates })
-                }
-            );
-            if (response.ok) {
-                setCropCoordinates(prev => ({
-                    ...prev,
-                    [imagePaths[currentImageIndex]]: coordinates
-                }));
-                setIsCurrentCropSaved(false);  // Reset saved status when coordinates change
-                fetchStats();  // Update counts since we've made a crop unsaved
-            }
-        } catch (error) {
-            console.error('Error updating crop coordinates:', error);
-        }
-    };
-
     const handleImageClick = (e) => {
-        if (!cropCoordinates[imagePaths[currentImageIndex]]) {
+        const currentImage = imagePaths[currentImageIndex];
+        if (!savedCropCoordinates[currentImage] && !localCropCoordinates[currentImage]) {
             const rect = e.target.getBoundingClientRect();
             const x = (e.clientX - rect.left) / rect.width;
             const y = (e.clientY - rect.top) / rect.height;
@@ -318,35 +125,64 @@ export default function App() {
                 width: 0.2,
                 height: 0.2
             };
-            updateCropCoordinates(newCoordinates);
+            setLocalCropCoordinates(prev => ({
+                ...prev,
+                [currentImage]: newCoordinates
+            }));
+            setIsCurrentCropSaved(false);
         }
     };
 
+    const updateCropCoordinates = (coordinates) => {
+        const currentImage = imagePaths[currentImageIndex];
+        setLocalCropCoordinates(prev => ({
+            ...prev,
+            [currentImage]: coordinates
+        }));
+        setIsCurrentCropSaved(false);
+        fetchStats();
+    };
+
     const saveCrop = async () => {
-        if (!cropCoordinates[imagePaths[currentImageIndex]]) {
+        const currentImage = imagePaths[currentImageIndex];
+        const coordinates = getCurrentCoordinates();
+        
+        if (!coordinates) {
             alert('Please create a crop box before saving');
             return;
         }
     
-        const coords = cropCoordinates[imagePaths[currentImageIndex]];
-        console.log('Saving crop for:', imagePaths[currentImageIndex]);
+        console.log('Saving crop for:', currentImage);
         console.log('Normalized coordinates:', {
-            x: coords.x.toFixed(4),
-            y: coords.y.toFixed(4),
-            width: coords.width.toFixed(4),
-            height: coords.height.toFixed(4)
+            x: coordinates.x.toFixed(4),
+            y: coordinates.y.toFixed(4),
+            width: coordinates.width.toFixed(4),
+            height: coordinates.height.toFixed(4)
         });
     
         try {
             const response = await fetch(
-                `${returnDomain('api')}/api/save_crop/${imagePaths[currentImageIndex]}`,
+                `${returnDomain('api')}/api/save_crop/${currentImage}`,
                 {
                     method: 'POST',
-                    credentials: 'include'
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ coordinates })
                 }
             );
+            
             if (response.ok) {
-                setSavedImages(prev => prev + 1);
+                setSavedCropCoordinates(prev => ({
+                    ...prev,
+                    [currentImage]: coordinates
+                }));
+                // Remove from local coordinates since it's now saved
+                setLocalCropCoordinates(prev => {
+                    const newLocal = { ...prev };
+                    delete newLocal[currentImage];
+                    return newLocal;
+                });
+                setIsCurrentCropSaved(true);
                 findNextUnsaved('forward');
             }
         } catch (error) {
@@ -354,6 +190,30 @@ export default function App() {
         }
     };
 
+    const handleNavigation = (newIndex) => {
+        if (newIndex !== currentImageIndex) {
+            // Clear states before navigation
+            setIsCurrentCropSaved(false);
+            setLocalCropCoordinates({});  // Clear all local coordinates
+            
+            setCurrentImageIndex(newIndex);
+            updatePosition(newIndex);
+            fetchCropCoordinates(newIndex);
+        }
+    };
+
+    const handleKeyPress = (event) => {
+        if (event.key === 'ArrowRight') {
+            const newIndex = Math.min(currentImageIndex + 1, imagePaths.length - 1);
+            handleNavigation(newIndex);
+        } else if (event.key === 'ArrowLeft') {
+            const newIndex = Math.max(currentImageIndex - 1, 0);
+            handleNavigation(newIndex);
+        } else if (event.key === 'Enter' || event.key === 's') {
+            saveCrop();
+        }
+    };
+    
     const findNextUnsaved = async (direction) => {
         try {
             const response = await fetch(
@@ -364,9 +224,7 @@ export default function App() {
             if (response.ok) {
                 const data = await response.json();
                 if (data.next_index !== null) {
-                    setCurrentImageIndex(data.next_index);
-                    updatePosition(data.next_index);
-                    fetchCropCoordinates(data.next_index);
+                    handleNavigation(data.next_index);
                 } else {
                     alert('No more unsaved images!');
                 }
@@ -376,34 +234,17 @@ export default function App() {
         }
     };
 
-    const handleKeyPress = (event) => {
-        if (event.key === 'ArrowRight') {
-            const newIndex = Math.min(currentImageIndex + 1, imagePaths.length - 1);
-            if (newIndex !== currentImageIndex) {
-                setCurrentImageIndex(newIndex);
-                updatePosition(newIndex);
-                fetchCropCoordinates(newIndex);
-            }
-        } else if (event.key === 'ArrowLeft') {
-            const newIndex = Math.max(currentImageIndex - 1, 0);
-            if (newIndex !== currentImageIndex) {
-                setCurrentImageIndex(newIndex);
-                updatePosition(newIndex);
-                fetchCropCoordinates(newIndex);
-            }
-        } else if (event.key === 'Enter' || event.key === 's') {
-            saveCrop();
-        }
-    };
-
     useEffect(() => {
         window.addEventListener('keydown', handleKeyPress);
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
         };
-    }, [currentImageIndex, cropCoordinates]);
+    }, [currentImageIndex, localCropCoordinates, savedCropCoordinates]);
 
-    const currentImageBasename = imagePaths[currentImageIndex].split('/').pop().replace(/\.[^/.]+$/, "");
+    const getCurrentCoordinates = () => {
+        const currentImage = imagePaths[currentImageIndex];
+        return localCropCoordinates[currentImage] || savedCropCoordinates[currentImage];
+    };
 
     if (!isLoggedIn) {
         return <Login onLogin={setIsLoggedIn} />;
@@ -450,9 +291,9 @@ export default function App() {
                         alt={`Image ${currentImageIndex + 1}`}
                         onClick={handleImageClick}
                     />
-                    {cropCoordinates[imagePaths[currentImageIndex]] && (
+                    {getCurrentCoordinates() && (
                         <CropBox 
-                            coordinates={cropCoordinates[imagePaths[currentImageIndex]]}
+                            coordinates={getCurrentCoordinates()}
                             setCoordinates={updateCropCoordinates}
                             imageRef={imageRef}
                         />

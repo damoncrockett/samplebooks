@@ -270,26 +270,26 @@ button:active {
 }
 
 .resize-handle.nw {
-    top: -5px;
-    left: -5px;
+    top: -8px;
+    left: -8px;
     cursor: nw-resize;
 }
 
 .resize-handle.ne {
-    top: -5px;
-    right: -5px;
+    top: -8px;
+    right: -8px;
     cursor: ne-resize;
 }
 
 .resize-handle.sw {
-    bottom: -5px;
-    left: -5px;
+    bottom: -8px;
+    left: -8px;
     cursor: sw-resize;
 }
 
 .resize-handle.se {
-    bottom: -5px;
-    right: -5px;
+    bottom: -8px;
+    right: -8px;
     cursor: se-resize;
 }
 

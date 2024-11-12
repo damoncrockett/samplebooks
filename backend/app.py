@@ -170,31 +170,38 @@ def get_crop_coordinates(image_path):
             "message": "Failed to fetch crop coordinates"
         }), 500
 
-@app.route('/api/crop_coordinates/<path:image_path>', methods=['POST'])
+@app.route('/api/save_crop/<path:image_path>', methods=['POST'])
 @login_required
-def update_crop_coordinates(image_path):
-    data = request.json
-    coordinates = data.get('coordinates')
-    
-    if not coordinates or not all(k in coordinates for k in ['x', 'y', 'width', 'height']):
-        return jsonify({
-            "status": "error",
-            "message": "Missing or invalid coordinates"
-        }), 400
-    
+def save_crop(image_path):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
+                # We no longer need to check if coordinates exist first,
+                # since we'll be creating/updating them here
+                
+                # Get the coordinates from the request
+                # (We'll need to modify the frontend to send coordinates with this request)
+                data = request.json
+                coordinates = data.get('coordinates')
+                
+                if not coordinates or not all(k in coordinates for k in ['x', 'y', 'width', 'height']):
+                    return jsonify({
+                        "status": "error",
+                        "message": "Missing or invalid coordinates"
+                    }), 400
+
+                # Insert/update coordinates and mark as saved in one operation
                 cur.execute('''
-                    INSERT INTO crop_coordinates (image_path, x, y, width, height, is_saved)
-                    VALUES (%s, %s, %s, %s, %s, FALSE)
+                    INSERT INTO crop_coordinates 
+                        (image_path, x, y, width, height, is_saved)
+                    VALUES (%s, %s, %s, %s, %s, TRUE)
                     ON CONFLICT (image_path) 
                     DO UPDATE SET 
                         x = EXCLUDED.x,
                         y = EXCLUDED.y,
                         width = EXCLUDED.width,
                         height = EXCLUDED.height,
-                        is_saved = FALSE,
+                        is_saved = TRUE,
                         timestamp = CURRENT_TIMESTAMP
                 ''', (
                     image_path,
@@ -203,46 +210,12 @@ def update_crop_coordinates(image_path):
                     coordinates['width'],
                     coordinates['height']
                 ))
-            conn.commit()
-            
-        return jsonify({
-            "status": "success",
-            "message": "Crop coordinates updated",
-            "coordinates": coordinates
-        })
-    except Exception as e:
-        print(f"Error updating crop coordinates: {e}")
-        return jsonify({
-            "status": "error",
-            "message": "Failed to update crop coordinates"
-        }), 500
-
-@app.route('/api/save_crop/<path:image_path>', methods=['POST'])
-@login_required
-def save_crop(image_path):
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                # Check if coordinates exist
-                cur.execute('SELECT id FROM crop_coordinates WHERE image_path = %s', (image_path,))
-                if not cur.fetchone():
-                    return jsonify({
-                        "status": "error",
-                        "message": "No crop coordinates found for this image"
-                    }), 404
-                
-                # Update saved status
-                cur.execute('''
-                    UPDATE crop_coordinates 
-                    SET is_saved = TRUE 
-                    WHERE image_path = %s
-                ''', (image_path,))
                 
             conn.commit()
             
         return jsonify({
             "status": "success",
-            "message": "Crop saved"
+            "message": "Crop coordinates saved"
         })
     except Exception as e:
         print(f"Error saving crop: {e}")
