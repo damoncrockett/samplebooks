@@ -15,12 +15,19 @@ app = Flask(__name__)
 app.config['PASSWORD_HASH'] = os.environ.get('PASSWORD_HASH')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+image_paths_file = os.path.join(BASE_DIR, 'impaths_all.json')
+
 try:
-    with open('../src/assets/json/impaths_all.json', 'r') as f:
+    with open('../src/assets/json/impaths_all.json', 'r') as f: # dev
         image_paths = json.load(f)
-except Exception as e:
-    print(f"Error loading image paths: {e}")
-    image_paths = []
+except:
+    try:
+        with open(image_paths_file, 'r') as f: # prod
+            image_paths = json.load(f)
+    except Exception as e:
+        print(f"Error loading image paths: {e}")
+        image_paths = []
 
 def login_required(f):
     @wraps(f)
