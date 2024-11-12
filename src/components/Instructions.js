@@ -7,11 +7,14 @@ export default function Instructions({ onClose }) {
                 <div className="modal-text">
                     <p>Welcome! Here's how to use this tool:</p>
                     <ul>
-                        <li>Use the arrow buttons or keys to move through the images</li>
-                        <li>Click anywhere to create a crop box</li>
-                        <li>The crop box can be moved and resized</li>
-                        <li>You can always come back to images you've cropped</li>
-                        <li>You can skip to the next uncropped image in either direction, too</li>
+                        <li>You can navigate through the images with the arrow keys on your keyboard</li>
+                        <li>To create a crop box, click anywhere on the image and one will appear</li>
+                        <li>Move the box by dragging, and resize by pulling the dots</li>
+                        <li>Once you're happy with it, hit SAVE</li>
+                        <li>You can always come back and change it, too</li>
+                        <li>There are buttons up top that skip you to the next image that lacks a saved crop box</li>
+                        <li>The counters beside those buttons tell you how many images remain without saved crop boxes</li>
+                        <li>All your boxes will be saved across sessions!</li>
                     </ul>
                 </div>
                 <button onClick={onClose}>Ok, got it!</button>
