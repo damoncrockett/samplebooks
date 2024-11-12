@@ -2,11 +2,11 @@ from flask import Flask, jsonify, request, make_response
 import os
 import psycopg2
 from psycopg2.extras import DictCursor
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from functools import wraps
 import hashlib
-from datetime import timedelta
+import json
 
 load_dotenv()
 
@@ -15,17 +15,19 @@ app = Flask(__name__)
 app.config['PASSWORD_HASH'] = os.environ.get('PASSWORD_HASH')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
+try:
+    with open('../src/assets/json/impaths_all.json', 'r') as f:
+        image_paths = json.load(f)
+except Exception as e:
+    print(f"Error loading image paths: {e}")
+    image_paths = []
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_cookie = request.cookies.get('auth_token')
-        print("Received cookies:", request.cookies)  # Debug
-        print("Auth cookie value:", auth_cookie)  # Debug
-        print("Expected value:", app.config['SECRET_KEY'])  # Debug
         if not auth_cookie or auth_cookie != app.config['SECRET_KEY']:
-            print("Auth failed - cookie missing or mismatch")  # Debug
             return jsonify({"error": "Unauthorized"}), 401
-        print("Auth successful")  # Debug
         return f(*args, **kwargs)
     return decorated_function
 
@@ -38,15 +40,13 @@ def login():
     
     if hashed == app.config['PASSWORD_HASH']:
         response = make_response(jsonify({"status": "success"}))
-        
-        # Be explicit about the domain
         response.set_cookie(
             'auth_token', 
             app.config['SECRET_KEY'],
             max_age=timedelta(days=30),
             secure=True,
             httponly=True,
-            samesite='None',  # Changed from 'Strict' to 'None' for cross-site
+            samesite='None',
             path='/',
             domain='fierce-earth-72469-f6228ef670f9.herokuapp.com'
         )
@@ -54,12 +54,11 @@ def login():
 
     return jsonify({"status": "error", "message": "Invalid password"}), 401
 
-# CORS settings
 ALLOWED_ORIGINS = [
-    'http://localhost:8080',  # Development
-    'http://samplebook.photos',  # Production domain HTTP
-    'https://samplebook.photos',  # Production domain HTTPS
-    'https://fierce-earth-72469-f6228ef670f9.herokuapp.com'  # Heroku domain
+    'http://localhost:8080',
+    'http://samplebook.photos',
+    'https://samplebook.photos',
+    'https://fierce-earth-72469-f6228ef670f9.herokuapp.com'
 ]
 
 @app.after_request
@@ -70,18 +69,7 @@ def after_request(response):
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Vary'] = 'Origin'  # Important for CORS with credentials
-    return response
-
-@app.route('/api/submit_judgment', methods=['OPTIONS'])
-def submit_judgment_preflight():
-    response = make_response()
-    origin = request.headers.get('Origin')
-    if origin in ALLOWED_ORIGINS:
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        response.headers['Access-Control-Allow-Methods'] = 'POST,OPTIONS'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Vary'] = 'Origin'
     return response
 
 def get_db_connection():
@@ -93,26 +81,55 @@ def get_db_connection():
 def init_db():
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            # Create new matchups table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS matchups (
+            # Check if table exists
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'crop_coordinates'
+                )
+            """)
+            table_exists = cur.fetchone()[0]
+
+            if not table_exists:
+                # Create crop_coordinates table with is_saved column
+                cur.execute('''
+                    CREATE TABLE crop_coordinates (
+                        id SERIAL PRIMARY KEY,
+                        image_path TEXT NOT NULL,
+                        x FLOAT NOT NULL,
+                        y FLOAT NOT NULL,
+                        width FLOAT NOT NULL,
+                        height FLOAT NOT NULL,
+                        is_saved BOOLEAN DEFAULT FALSE,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(image_path)
+                    )
+                ''')
+                print("Created crop_coordinates table")
+            
+            # Create image_positions table if it doesn't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS image_positions (
                     id SERIAL PRIMARY KEY,
-                    image_path TEXT NOT NULL,
-                    selected_model TEXT NOT NULL,
-                    other_model TEXT NOT NULL,
+                    current_position INTEGER NOT NULL DEFAULT 0,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-        conn.commit()
+            """)
+            
+            # Insert initial position if table is empty
+            cur.execute('SELECT COUNT(*) FROM image_positions')
+            if cur.fetchone()[0] == 0:
+                cur.execute('INSERT INTO image_positions (current_position) VALUES (0)')
+            
+            conn.commit()
 
-def record_judgment(image_path, selected_model, other_model):
+def drop_tables():
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute('''
-                INSERT INTO matchups (image_path, selected_model, other_model)
-                VALUES (%s, %s, %s)
-            ''', (image_path, selected_model, other_model))
-        conn.commit()
+            cur.execute('DROP TABLE IF EXISTS crop_coordinates')
+            cur.execute('DROP TABLE IF EXISTS image_positions')
+            conn.commit()
+            print("Tables dropped")
 
 # Initialize database when app starts
 try:
@@ -120,122 +137,294 @@ try:
 except Exception as e:
     print(f"Error initializing database: {e}")
 
-@app.route('/api/submit_judgment', methods=['POST', 'OPTIONS'])
+@app.route('/api/crop_coordinates/<path:image_path>', methods=['GET'])
 @login_required
-def submit_judgment():
-    if request.method == 'OPTIONS':
-        return jsonify({"status": "success"})
-        
-    data = request.json
-    image_path = data.get('imgPath')
-    selected_model = data.get('selectedModel')
-    other_model = data.get('otherModel')
-    
-    if not all([image_path, selected_model, other_model]):
-        return jsonify({
-            "status": "error",
-            "message": "Missing required fields"
-        }), 400
-    
-    try:
-        record_judgment(image_path, selected_model, other_model)
-        
-        print(f"Recorded matchup - Image: {image_path}, Winner: {selected_model}, Other: {other_model}")
-        
-        return jsonify({
-            "status": "success",
-            "message": "Matchup recorded",
-            "data": {
-                "image_path": image_path,
-                "selected_model": selected_model,
-                "other_model": other_model
-            }
-        })
-    except Exception as e:
-        print(f"Error recording matchup: {e}")
-        return jsonify({
-            "status": "error",
-            "message": "Failed to record matchup"
-        }), 500
-
-@app.route('/api/stats', methods=['GET'])
-@login_required
-def get_stats():
+def get_crop_coordinates(image_path):
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                # Get overall win counts for each model
                 cur.execute('''
-                    SELECT 
-                        selected_model as model,
-                        COUNT(*) as wins,
-                        (
-                            SELECT COUNT(*)
-                            FROM matchups j2
-                            WHERE j2.other_model = j1.selected_model
-                        ) as losses
-                    FROM matchups j1
-                    GROUP BY selected_model
-                    ORDER BY wins DESC
-                ''')
-                model_stats = cur.fetchall()
+                    SELECT x, y, width, height, is_saved
+                    FROM crop_coordinates 
+                    WHERE image_path = %s
+                ''', (image_path,))
                 
-                # Get head-to-head stats
+                result = cur.fetchone()
+                
+                if result:
+                    coordinates = {
+                        'x': float(result['x']),
+                        'y': float(result['y']),
+                        'width': float(result['width']),
+                        'height': float(result['height']),
+                        'is_saved': result['is_saved']
+                    }
+                    return jsonify({"coordinates": coordinates})
+                else:
+                    return jsonify({"coordinates": None}), 404
+                    
+    except Exception as e:
+        print(f"Error fetching crop coordinates: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to fetch crop coordinates"
+        }), 500
+
+@app.route('/api/crop_coordinates/<path:image_path>', methods=['POST'])
+@login_required
+def update_crop_coordinates(image_path):
+    data = request.json
+    coordinates = data.get('coordinates')
+    
+    if not coordinates or not all(k in coordinates for k in ['x', 'y', 'width', 'height']):
+        return jsonify({
+            "status": "error",
+            "message": "Missing or invalid coordinates"
+        }), 400
+    
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
                 cur.execute('''
-                    WITH matchups_summary AS (
-                        SELECT 
-                            LEAST(selected_model, other_model) as model1,
-                            GREATEST(selected_model, other_model) as model2,
-                            CASE 
-                                WHEN selected_model = LEAST(selected_model, other_model) THEN 1
-                                ELSE 0
-                            END as model1_won
-                        FROM matchups
+                    INSERT INTO crop_coordinates (image_path, x, y, width, height, is_saved)
+                    VALUES (%s, %s, %s, %s, %s, FALSE)
+                    ON CONFLICT (image_path) 
+                    DO UPDATE SET 
+                        x = EXCLUDED.x,
+                        y = EXCLUDED.y,
+                        width = EXCLUDED.width,
+                        height = EXCLUDED.height,
+                        is_saved = FALSE,
+                        timestamp = CURRENT_TIMESTAMP
+                ''', (
+                    image_path,
+                    coordinates['x'],
+                    coordinates['y'],
+                    coordinates['width'],
+                    coordinates['height']
+                ))
+            conn.commit()
+            
+        return jsonify({
+            "status": "success",
+            "message": "Crop coordinates updated",
+            "coordinates": coordinates
+        })
+    except Exception as e:
+        print(f"Error updating crop coordinates: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to update crop coordinates"
+        }), 500
+
+@app.route('/api/save_crop/<path:image_path>', methods=['POST'])
+@login_required
+def save_crop(image_path):
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                # Check if coordinates exist
+                cur.execute('SELECT id FROM crop_coordinates WHERE image_path = %s', (image_path,))
+                if not cur.fetchone():
+                    return jsonify({
+                        "status": "error",
+                        "message": "No crop coordinates found for this image"
+                    }), 404
+                
+                # Update saved status
+                cur.execute('''
+                    UPDATE crop_coordinates 
+                    SET is_saved = TRUE 
+                    WHERE image_path = %s
+                ''', (image_path,))
+                
+            conn.commit()
+            
+        return jsonify({
+            "status": "success",
+            "message": "Crop saved"
+        })
+    except Exception as e:
+        print(f"Error saving crop: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to save crop"
+        }), 500
+
+@app.route('/api/current_position', methods=['GET'])
+@login_required
+def get_current_position():
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT current_position FROM image_positions ORDER BY timestamp DESC LIMIT 1')
+                position = cur.fetchone()[0]
+                return jsonify({"current_position": position})
+    except Exception as e:
+        print(f"Error fetching position: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to fetch position"
+        }), 500
+
+@app.route('/api/update_position', methods=['POST'])
+@login_required
+def update_position():
+    data = request.json
+    new_position = data.get('position')
+    
+    if new_position is None:
+        return jsonify({
+            "status": "error",
+            "message": "Missing position"
+        }), 400
+    
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO image_positions (current_position)
+                    VALUES (%s)
+                ''', (new_position,))
+            conn.commit()
+            
+        return jsonify({
+            "status": "success",
+            "message": "Position updated",
+            "position": new_position
+        })
+    except Exception as e:
+        print(f"Error updating position: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to update position"
+        }), 500
+
+@app.route('/api/stats/<int:current_index>', methods=['GET'])
+@login_required
+def get_stats(current_index):
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                # Count unsaved images before current position
+                cur.execute('''
+                    WITH numbered_paths AS (
+                        SELECT path, idx 
+                        FROM unnest(%s::text[]) WITH ORDINALITY AS t(path, idx)
                     )
-                    SELECT 
-                        model1,
-                        model2,
-                        SUM(model1_won) as model1_wins,
-                        COUNT(*) - SUM(model1_won) as model2_wins,
-                        COUNT(*) as total_matches
-                    FROM matchups_summary
-                    GROUP BY model1, model2
-                    ORDER BY total_matches DESC, model1
-                ''')
-                matchup_stats = cur.fetchall()
-                
-                # Get total number of matchups judged
-                cur.execute('SELECT COUNT(*) as total FROM matchups')
-                total_matchups = cur.fetchone()['total']
+                    SELECT COUNT(*) as count_before
+                    FROM numbered_paths np
+                    LEFT JOIN crop_coordinates cc ON cc.image_path = np.path
+                    WHERE np.idx - 1 < %s 
+                    AND (cc.id IS NULL OR NOT cc.is_saved)
+                ''', (image_paths, current_index))
+                unsaved_before = cur.fetchone()['count_before']
+
+                # Count unsaved images after current position
+                cur.execute('''
+                    WITH numbered_paths AS (
+                        SELECT path, idx 
+                        FROM unnest(%s::text[]) WITH ORDINALITY AS t(path, idx)
+                    )
+                    SELECT COUNT(*) as count_after
+                    FROM numbered_paths np
+                    LEFT JOIN crop_coordinates cc ON cc.image_path = np.path
+                    WHERE np.idx - 1 > %s 
+                    AND (cc.id IS NULL OR NOT cc.is_saved)
+                ''', (image_paths, current_index))
+                unsaved_after = cur.fetchone()['count_after']
                 
                 return jsonify({
-                    "total_matchups": total_matchups,
-                    "overall_stats": [
-                        {
-                            "model": row['model'],
-                            "wins": row['wins'],
-                            "losses": row['losses'],
-                            "win_rate": round(row['wins'] / (row['wins'] + row['losses']) * 100, 1)
-                            if (row['wins'] + row['losses']) > 0 else 0
-                        }
-                        for row in model_stats
-                    ],
-                    "matchup_stats": [
-                        {
-                            "model1": row['model1'],
-                            "model2": row['model2'],
-                            "model1_wins": row['model1_wins'],
-                            "model2_wins": row['model2_wins'],
-                            "total_matches": row['total_matches']
-                        }
-                        for row in matchup_stats
-                    ]
+                    "unsaved_before": unsaved_before,
+                    "unsaved_after": unsaved_after
                 })
     except Exception as e:
         print(f"Error fetching stats: {e}")
         return jsonify({
             "status": "error",
             "message": "Failed to fetch stats"
+        }), 500
+
+@app.route('/api/next_unsaved/<int:current_index>/<path:direction>', methods=['GET'])
+@login_required
+def get_next_unsaved(current_index, direction):
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                if direction == 'forward':
+                    # Find next unsaved image after current_index
+                    cur.execute('''
+                        WITH numbered_paths AS (
+                            SELECT path, idx 
+                            FROM unnest(%s::text[]) WITH ORDINALITY AS t(path, idx)
+                        )
+                        SELECT np.idx - 1 as next_index
+                        FROM numbered_paths np
+                        LEFT JOIN crop_coordinates cc ON cc.image_path = np.path
+                        WHERE np.idx - 1 > %s 
+                        AND (cc.id IS NULL OR NOT cc.is_saved)
+                        ORDER BY np.idx
+                        LIMIT 1
+                    ''', (image_paths, current_index))
+                else:
+                    # Find previous unsaved image before current_index
+                    cur.execute('''
+                        WITH numbered_paths AS (
+                            SELECT path, idx 
+                            FROM unnest(%s::text[]) WITH ORDINALITY AS t(path, idx)
+                        )
+                        SELECT np.idx - 1 as next_index
+                        FROM numbered_paths np
+                        LEFT JOIN crop_coordinates cc ON cc.image_path = np.path
+                        WHERE np.idx - 1 < %s 
+                        AND (cc.id IS NULL OR NOT cc.is_saved)
+                        ORDER BY np.idx DESC
+                        LIMIT 1
+                    ''', (image_paths, current_index))
+
+                result = cur.fetchone()
+                next_index = result[0] if result and result[0] is not None else None
+                
+                if next_index is None and direction == 'forward':
+                    # If no unsaved images after current, wrap to start
+                    cur.execute('''
+                        WITH numbered_paths AS (
+                            SELECT path, idx 
+                            FROM unnest(%s::text[]) WITH ORDINALITY AS t(path, idx)
+                        )
+                        SELECT np.idx - 1 as next_index
+                        FROM numbered_paths np
+                        LEFT JOIN crop_coordinates cc ON cc.image_path = np.path
+                        WHERE (cc.id IS NULL OR NOT cc.is_saved)
+                        ORDER BY np.idx
+                        LIMIT 1
+                    ''', (image_paths,))
+                    result = cur.fetchone()
+                    next_index = result[0] if result and result[0] is not None else current_index
+                elif next_index is None and direction == 'backward':
+                    # If no unsaved images before current, wrap to end
+                    cur.execute('''
+                        WITH numbered_paths AS (
+                            SELECT path, idx 
+                            FROM unnest(%s::text[]) WITH ORDINALITY AS t(path, idx)
+                        )
+                        SELECT np.idx - 1 as next_index
+                        FROM numbered_paths np
+                        LEFT JOIN crop_coordinates cc ON cc.image_path = np.path
+                        WHERE (cc.id IS NULL OR NOT cc.is_saved)
+                        ORDER BY np.idx DESC
+                        LIMIT 1
+                    ''', (image_paths,))
+                    result = cur.fetchone()
+                    next_index = result[0] if result and result[0] is not None else current_index
+
+                return jsonify({"next_index": next_index})
+                
+    except Exception as e:
+        print(f"Error finding next unsaved: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to find next unsaved"
         }), 500
 
 if __name__ == '__main__':
