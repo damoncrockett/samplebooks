@@ -88,7 +88,7 @@ def get_db_connection():
 def init_db():
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            # Check if table exists
+            # Check if tables exist
             cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -98,35 +98,65 @@ def init_db():
             table_exists = cur.fetchone()[0]
 
             if not table_exists:
-                # Create crop_coordinates table with is_saved column
-                cur.execute('''
-                    CREATE TABLE crop_coordinates (
-                        id SERIAL PRIMARY KEY,
-                        image_path TEXT NOT NULL,
-                        x FLOAT NOT NULL,
-                        y FLOAT NOT NULL,
-                        width FLOAT NOT NULL,
-                        height FLOAT NOT NULL,
-                        is_saved BOOLEAN DEFAULT FALSE,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(image_path)
-                    )
-                ''')
-                print("Created crop_coordinates table")
+                try:
+                    # First drop the sequence if it exists
+                    cur.execute("""
+                        DROP SEQUENCE IF EXISTS crop_coordinates_id_seq CASCADE
+                    """)
+                    
+                    # Create crop_coordinates table with is_saved column
+                    cur.execute('''
+                        CREATE TABLE crop_coordinates (
+                            id SERIAL PRIMARY KEY,
+                            image_path TEXT NOT NULL,
+                            x FLOAT NOT NULL,
+                            y FLOAT NOT NULL,
+                            width FLOAT NOT NULL,
+                            height FLOAT NOT NULL,
+                            is_saved BOOLEAN DEFAULT FALSE,
+                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(image_path)
+                        )
+                    ''')
+                    print("Created crop_coordinates table")
+                except Exception as e:
+                    print(f"Error creating crop_coordinates table: {e}")
+                    conn.rollback()
+                    raise e
             
-            # Create image_positions table if it doesn't exist
+            # Check if image_positions table exists
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS image_positions (
-                    id SERIAL PRIMARY KEY,
-                    current_position INTEGER NOT NULL DEFAULT 0,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'image_positions'
                 )
             """)
+            positions_table_exists = cur.fetchone()[0]
             
-            # Insert initial position if table is empty
-            cur.execute('SELECT COUNT(*) FROM image_positions')
-            if cur.fetchone()[0] == 0:
-                cur.execute('INSERT INTO image_positions (current_position) VALUES (0)')
+            if not positions_table_exists:
+                try:
+                    # Drop sequence if it exists
+                    cur.execute("""
+                        DROP SEQUENCE IF EXISTS image_positions_id_seq CASCADE
+                    """)
+                    
+                    # Create image_positions table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS image_positions (
+                            id SERIAL PRIMARY KEY,
+                            current_position INTEGER NOT NULL DEFAULT 0,
+                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                    
+                    # Insert initial position if table is empty
+                    cur.execute('SELECT COUNT(*) FROM image_positions')
+                    if cur.fetchone()[0] == 0:
+                        cur.execute('INSERT INTO image_positions (current_position) VALUES (0)')
+                except Exception as e:
+                    print(f"Error creating image_positions table: {e}")
+                    conn.rollback()
+                    raise e
             
             conn.commit()
 
