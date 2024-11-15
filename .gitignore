@@ -14,7 +14,8 @@
 
 src/assets/img
 dist
-notebooks
+notebooks/local
+notebooks/.ipynb_checkpoints
 sbenv
 src/assets/ims.zip
 _notes.txt
