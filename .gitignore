@@ -23,3 +23,9 @@ _notes.txt
 backend
 package.json
 src
+babel.config.js
+index.html
+webpack.config.js
+yarn.lock
+.editorconfig
+.gitattributes
