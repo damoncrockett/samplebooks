@@ -23,7 +23,7 @@ _notes.txt
 backend
 package.json
 src
-babel.config.js
+babel.config.json
 index.html
 webpack.config.js
 yarn.lock
