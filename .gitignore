@@ -20,3 +20,6 @@ sbenv
 src/assets/ims.zip
 _notes.txt
 .env
+backend
+package.json
+src
